@@ -57,7 +57,7 @@ def configure():
 def theme_red_rose():
 	global currTheme
 	currTheme = "red_rose"
-	theme_update('#ffe2f3','#980058','#bf006f','#980058','#ffffff')
+	theme_update('#ffe2f3','#980058','#bf006f','#980058','#980058')
 
 def theme_notepad():
 	global currTheme
@@ -159,8 +159,30 @@ def Save_file():
 	else:
 		create_file()
 
+def Undo_save():
+	try:
+		with open('temp.txt','w') as f:
+			f.write(main_textarea.get('1.0',END))
+	except Exception as e:
+		with open('temp.txt','x') as f:
+			f.write(main_textarea.get('1.0',END))
+
+def Undo_write():
+	main_textarea.delete('1.0',END)
+	try:
+		with open('temp.txt','r') as f:
+			main_textarea.insert(INSERT,f.read())
+	except Exception as e:
+		with open('temp.txt','x') as f:
+			pass
+
+
 def check_shortcut(event):
 	global issaved,isopenedfile,has_Colun,tabs_Num
+	if (event.state==12 or event.state==4) and event.keysym=='z':
+		print('undo_write is called')
+		Undo_write()
+		return
 	if (event.state==12 or event.state==4) and event.keysym=='s':
 		if isopenedfile:
 			Save_file()
@@ -198,6 +220,9 @@ def getIndex():
 
 def insert_next_line(event):
 	global disable_enter,has_Colun,tabs_Num
+	if event.keysym > 'a' and event.keysym < 'z':
+		print('undo_save is called',event.keysym)
+		Undo_save()
 	pos = main_textarea.index(INSERT)
 	matches = getIndex()
 	start_row=int(matches[1])

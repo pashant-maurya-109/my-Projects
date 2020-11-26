@@ -4,3 +4,5 @@
 texsting.py
 *.spec
 *.ico
+*.txt
+*.json
