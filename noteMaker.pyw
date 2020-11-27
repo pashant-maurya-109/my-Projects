@@ -2,8 +2,10 @@ import re
 import json
 from tkinter import *
 import tkinter.messagebox as fmsg
+import tkinter.simpledialog as sd
 import tkinter.filedialog as fd
 from tkfontchooser import askfont
+from tkinter.colorchooser import askcolor
 from tkinter import ttk
 import tkinter.font as tkf
 
@@ -13,17 +15,17 @@ issaved = False
 isopenedfile = False
 tbg = '#ffffff'
 tfg = '#000000'
-sbg = '#ffffff'
-sfg = '#000000'
-ibg = '#000000'
+cbg = 'null'
+cfg = 'null'
+
 currTheme = 'notepad'
 font_family = 'arial'
 font_size = 20
 font_style = 'normal'
 d = re.compile(r"\d+")
 disable_enter = False
-has_Colun = False
 tabs_Num = 0
+Line_Num = 0
 def configure():
 	global currTheme,font_family,font_size,font_style
 	try:
@@ -36,10 +38,15 @@ def configure():
 	font_size = int(confes['font_size'])
 	font_family = confes['font_family']
 	font_style = confes['font_style']
-	if(confes["custom"] != "null"):
+	if(confes["custom"] != "null/null"):
 		colors = confes["custom"].split("/")
 		try:
-			theme_update(colors[0],colors[1],colors[2],colors[3],colors[4])
+			if colors[0]=='null' and colors[1]!='null':
+				theme_update(colors[0],'#000000')
+			elif colors[0]=='null' and colors[1]!='null':
+				theme_update('#ffffff',colors[1])
+			else:
+				theme_update(colors[0],colors[1])
 		except Exception as e:
 			pass
 		return
@@ -57,45 +64,52 @@ def configure():
 def theme_red_rose():
 	global currTheme
 	currTheme = "red_rose"
-	theme_update('#ffe2f3','#980058','#bf006f','#980058','#980058')
+	theme_update('#ffe2f3','#980058')
 
 def theme_notepad():
 	global currTheme
 	currTheme = "notepad"
-	theme_update('#ffffff','#000000','#ffffff','#000000','#000000')
+	theme_update('#ffffff','#000000')
 
 def theme_nature_green():
 	global currTheme
 	currTheme = "nature_green"
-	theme_update('#edffef','#009211','#00af14','#ffffff','#009211')
+	theme_update('#edffef','#009211')
 
 def theme_soft_cream():
 	global currTheme
 	currTheme = "soft_cream"
-	theme_update('#fdf6e3','#ffba00','#efe8d5','#ffffff','#ffba00')
+	theme_update('#fdf6e3','#ffba00')
 
 def theme_winter_blue():
 	global currTheme
 	currTheme = "winter_blue"
-	theme_update('#e5f9ff','#007092','#34b0d5','#ffffff','#007092')
+	theme_update('#e5f9ff','#007092')
 
 def theme_night_owl():
 	global currTheme
 	currTheme = "night_owl"
-	theme_update('#282c34','#ffffff','#282c34','#8e9a87','#ffffff')
+	theme_update('#282c34','#ffffff')
 
-def theme_update(tbg_para,tfg_para,sbg_para,sfg_para,ibg_para):
+def custom_Background():
+	global cbg
+	color = askcolor()
+	cbg = color[1]
+	main_textarea.config(fg=color[1],insertbackground=color[1])
+
+def custom_Foreground():
+	global cfg
+	color = askcolor()
+	cfg = color[1]
+	main_textarea.config(fg=color[1],insertbackground=color[1])
+
+def theme_update(tbg_para,tfg_para):
 	try:
-		staus.config(bg=sbg_para,fg=sfg_para)
-		main_textarea.config(bg=tbg_para,fg=tfg_para,insertbackground=ibg_para)
+		main_textarea.config(bg=tbg_para,fg=tfg_para,insertbackground=tfg_para)
 	except Exception as e:
-		global tbg,tfg,sbg,sfg,ibg
+		global tbg,tfg
 		tbg = tbg_para
 		tfg = tfg_para
-		sbg = sbg_para
-		sfg = sfg_para
-		ibg = ibg_para
-
 
 configure()
 
@@ -103,12 +117,12 @@ def exit_window():
 	global currTheme,font_family,font_size,font_style,isopenedfile
 	with open('conf.json','w') as f:
 		conf = json.dumps({
-		"use custom color":"color in hexa_decimal like :- tbg/tfg/sbg/sfg/ibg",
+		"use custom color":"color in hexa_decimal like :- tbg/tfg",
 		"theme":currTheme,
 		"font_family":font_family,
 		"font_size":font_size,
 		"font_style":font_style,
-		"custom":"null"
+		"custom":f"{cbg}/{cfg}"
 		})
 		num = len(conf)
 		f.write("{\n")
@@ -126,10 +140,10 @@ def exit_window():
 	root.destroy()
 
 def about():
-	fmsg.showinfo('NoteMaker - Create Efficient notes',f'developer name:- prashant maurya\nVersion :- 7.1\nThanks To using this notemaker plese loving this.')
+	fmsg.showinfo('NoteMaker - Create Efficient notes',f'developer name:- prashant maurya\nVersion :- 8.1\nThanks To using this notemaker plese loving this.')
 
 def delete_to_space(event):
-	sign = [" ","#","=","$",'@',"&",",",":"]
+	sign = [" ","#","=","$",'@',"&",",",":",".","%","'"]
 	insert = main_textarea.index(INSERT)
 	matches = d.findall(insert)
 	start_row=int(matches[1])
@@ -178,9 +192,8 @@ def Undo_write():
 
 
 def check_shortcut(event):
-	global issaved,isopenedfile,has_Colun,tabs_Num
+	global issaved,isopenedfile,tabs_Num,Line_Num
 	if (event.state==12 or event.state==4) and event.keysym=='z':
-		print('undo_write is called')
 		Undo_write()
 		return
 	if (event.state==12 or event.state==4) and event.keysym=='s':
@@ -193,54 +206,45 @@ def check_shortcut(event):
 	start_column=int(matches[0])
 	if event.keysym=='Return' and event.widget.get(INSERT,f"{start_column}.{start_row+3}") == ">> ":
 		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row+3}')
+
 	if event.keysym=="Return" and start_row==3:
 		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row}')
 		return
+
 	if (event.state==12 or event.state==4) and event.keysym=="o":
 		Open_file()
 	if issaved:
 		root.title(file_name)
 	elif event.keysym>="a" and event.keysym<="z":
 		root.title('*'+file_name)
-		staus.update()
 	previos_char = main_textarea.get(f'{start_column}.{start_row - 1}', INSERT)
 	if previos_char==">" and event.keysym=="BackSpace" and tabs_Num!=0:
-		delete_to_space(event)
+		main_textarea.delete(f'{start_column}.1',INSERT)
 		tabs_Num=0
+		Line_Num=0
 	if previos_char ==":" and event.keysym=="Return":
-		has_Colun = True
 		tabs_Num += 1
-	staus.config(anchor="w")
-	Editor_state.set("Tabs_num : "+str(tabs_Num))
+		Line_Num=1
 	issaved = False
-
 
 def getIndex():
 	return d.findall(main_textarea.index(INSERT))
 
 def insert_next_line(event):
-	global disable_enter,has_Colun,tabs_Num
-	if event.keysym > 'a' and event.keysym < 'z':
-		print('undo_save is called',event.keysym)
+	global disable_enter,has_Colun,tabs_Num,Line_Num
+	if event.keysym >= 'a' and event.keysym <= 'z':
 		Undo_save()
 	pos = main_textarea.index(INSERT)
 	matches = getIndex()
 	start_row=int(matches[1])
 	start_column=int(matches[0])
-	if has_Colun:
-		for i in range(tabs_Num):
-			main_textarea.insert(INSERT, "\t")
-		for i in range(tabs_Num):
-			main_textarea.insert(INSERT, ">")
-		has_Colun = False
-		return
 
 	if event.keysym=="Return" and not disable_enter:
 		if tabs_Num != 0:
 			for i in range(tabs_Num):
 				main_textarea.insert(INSERT,"\t")
-			for i in range(tabs_Num):
-				main_textarea.insert(INSERT,">")
+			main_textarea.insert(INSERT,f"{tabs_Num}.{Line_Num} >")
+			Line_Num+=1
 		else:
 			event.widget.insert(INSERT,">> ")
 		return
@@ -251,19 +255,19 @@ def insert_next_line(event):
 	if main_textarea.get(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}') == ".exit":
 		exit_window()
 		return
-
-	if event.keysym=='parenleft':
+	if event.char=='(':
 		main_textarea.insert(INSERT,')')
-	elif event.keysym=='braceleft':
+	elif event.char=='{':
 		main_textarea.insert(INSERT,'}')
-	elif event.keysym=='bracketleft':
+	elif event.char=='[':
 		main_textarea.insert(INSERT,']')
-	elif event.keysym=="quoteright":
+	elif event.char=="'":
 		main_textarea.insert(INSERT,"'")
-	elif event.keysym=='quotedbl':
+	elif event.char=='"':
 		main_textarea.insert(INSERT,'"')
 	main_textarea.mark_set("insert",pos)
-	disable_enter = False
+	if disable_enter:
+		disable_enter = False
 
 def create_file():
 	global file_name,isopenedfile,disable_enter,issaved
@@ -291,7 +295,6 @@ def Open_file():
 		isopenedfile = False
 	main_textarea.delete('0.0',END)
 	root.title("Untitled - NoteMaker")
-	staus.update()
 	opened_file = fd.askopenfile(mode='r',filetypes=[('Text Files','*.txt')])
 	if opened_file is None:
 		return
@@ -348,7 +351,6 @@ root.protocol("WM_DELETE_WINDOW", exit_window)
 typer_mode = IntVar()
 wraps = IntVar()
 root.title('Untitled - NoteMaker')
-Editor_state.set("Welcome sir")
 
 # creating menu
 menu = Menu(root)
@@ -379,6 +381,8 @@ theme.add_command(label='Winter Blue',command = theme_winter_blue)
 theme.add_command(label='Night Owl',command = theme_night_owl)
 theme.add_command(label='Soft Cream',command = theme_soft_cream)
 theme.add_command(label='Notepad',command = theme_notepad)
+theme.add_command(label="custom Background",command = custom_Background)
+theme.add_command(label="custom Foreground",command = custom_Foreground)
 m2.add_cascade(label='Theme',menu=theme)
 menu.add_cascade(label='Edit',menu=m2)
 
@@ -388,11 +392,11 @@ m3.add_command(label='about		',command=about)
 menu.add_cascade(label='help',menu=m3)
 
 # creating status bar by label
-staus = Label(root, textvariable=Editor_state, bg=sbg, fg=sfg, font='sarif 15 normal',height=1)
-staus.pack(fill=X,side=BOTTOM)
+# staus = Label(root, textvariable=Editor_state, bg=sbg, fg=sfg, font='sarif 15 normal',height=1)
+# staus.pack(fill=BOTH,side=BOTTOM)
 
 text_frame = Frame(root)
-text_frame.pack(side=TOP,fill="x")
+text_frame.pack(side=TOP,expand=True,fill="both")
 
 # creating scrolbar fot main text_area
 sc_y = Scrollbar(text_frame,troughcolor="red")
@@ -402,7 +406,7 @@ sc_x = Scrollbar(text_frame,orient=HORIZONTAL,width=20)
 sc_x.pack(side=BOTTOM,fill=X)
 
 # creating textarea
-main_textarea = Text(text_frame,insertbackground=ibg,tabs="0.5i",bg=tbg,fg=tfg,font=(font_family,font_size,font_style),yscrollcommand=sc_y.set,xscrollcommand=sc_x.set,wrap=NONE)
+main_textarea = Text(text_frame,insertbackground=tfg,tabs="0.5i",bg=tbg,fg=tfg,font=(font_family,font_size,font_style),yscrollcommand=sc_y.set,xscrollcommand=sc_x.set,wrap=NONE)
 main_textarea.pack(fill='both',expand=True)
 sc_y.config(command=main_textarea.yview)
 sc_x.config(command=main_textarea.xview)
@@ -411,7 +415,7 @@ main_textarea.bind("<Key>",check_shortcut)
 main_textarea.bind("<Control-BackSpace>",delete_to_space)
 main_textarea.bind("<MouseWheel>",zoom_in_out)
 
+del tbg,tfg
 
 root.config(menu=menu)
 root.mainloop()
-del tbg,tfg,sbg,sfg,ibg
