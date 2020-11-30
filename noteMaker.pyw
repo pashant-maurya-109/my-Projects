@@ -26,6 +26,7 @@ d = re.compile(r"\d+")
 disable_enter = False
 tabs_Num = 0
 Line_Num = 0
+hascode = False
 def configure():
 	global currTheme,font_family,font_size,font_style
 	try:
@@ -142,7 +143,7 @@ def exit_window():
 	root.destroy()
 
 def about():
-	fmsg.showinfo('NoteMaker - Create Efficient notes','Developer name:- Prashant maurya\nVersion :- 8.1\nThanks To using this notemaker plese loving this.')
+	fmsg.showinfo('NoteMaker - Create Efficient notes','Developer name:- Prashant maurya\nVersion :- 9.4\nThanks To using this notemaker plese loving this.')
 
 def delete_to_space(event):
 	sign = [" ","#","=","$",'@',"&",",",":",".","%","'"]
@@ -193,7 +194,7 @@ def Undo_write():
 
 
 def check_shortcut(event):
-	global issaved,isopenedfile,tabs_Num,Line_Num
+	global issaved,isopenedfile,tabs_Num,Line_Num,hascode
 	if (event.state==12 or event.state==4) and event.keysym=='z':
 		Undo_write()
 		issaved = False
@@ -221,19 +222,30 @@ def check_shortcut(event):
 		issaved = False
 		return
 
+	if main_textarea.get(f'{start_column}.{start_row - 9}', f'{start_column}.{start_row}') == "startcode" and event.keysym == "Return":
+		tabs_Num += 1
+		hascode = True
+		issaved = False
+		return
+
 	previos_char = main_textarea.get(f'{start_column}.{start_row - 1}', INSERT)
+
 	if previos_char==">" and event.keysym=="BackSpace" and tabs_Num!=0:
 		main_textarea.delete(f'{start_column}.1',INSERT)
 		tabs_Num=0
 		Line_Num=0
 		issaved = False
 		return
+	if previos_char =="{" and event.keysym== "Return":
+		tabs_Num+=1
+
 	if previos_char ==":" and event.keysym=="Return":
 		tabs_Num += 1
 		Line_Num=1
 		issaved = False
 		return
 	try:
+
 		line = main_textarea.get(f'{start_column}.0',INSERT)
 		line = valid_line.match(line)
 		number = re.compile("\\d+")
@@ -245,10 +257,13 @@ def check_shortcut(event):
 			block = len(line[0])+1
 			start_column+=1
 			line = main_textarea.get(f'{start_column}.0', f"{start_column}.100")
-			while valid_line.match(line).group() is not None and check==line[0:block-1]:
+			while valid_line.match(line).group() is not None :
 				block_line = number.findall(line)[1]
-				main_textarea.delete(f"{start_column}.{block}",f"{start_column}.{block+len(block_line)}")
-				main_textarea.insert(f"{start_column}.{block}",f"{int(block_line)+1}")
+				if check==line[0:block-1]:
+					main_textarea.delete(f"{start_column}.{block}",f"{start_column}.{block+len(block_line)}")
+					main_textarea.insert(f"{start_column}.{block}",f"{int(block_line)+1}")
+				if line[0]==">":
+					break
 				start_column+=1
 				line = main_textarea.get(f'{start_column}.0',f"{start_column}.100")
 			return
@@ -262,10 +277,9 @@ def getIndex():
 	return d.findall(main_textarea.index(INSERT))
 
 def insert_next_line(event):
-	global disable_enter,has_Colun,tabs_Num,Line_Num
+	global disable_enter,has_Colun,tabs_Num,Line_Num,hascode
 	valid_char = re.compile('[a-zA-Z0-9:;@!#%^&*\.\s]')
 	try:
-		pos = main_textarea.index(INSERT)
 		matches = getIndex()
 		start_row=int(matches[1])
 		start_column=int(matches[0])
@@ -288,6 +302,12 @@ def insert_next_line(event):
 			subprocess.run('start',shell=True,check=True)
 			disable_enter = True
 			return
+		if main_textarea.get(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}') == ".cexit" and valid_char.match(event.char).group() is  not None:
+			main_textarea.delete(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}')
+			hascode = False
+			tabs_Num = 0
+			Line_Num = 0
+			return
 	except Exception as e:
 		pass
 
@@ -295,11 +315,14 @@ def insert_next_line(event):
 		if tabs_Num != 0:
 			for i in range(tabs_Num):
 				main_textarea.insert(INSERT,"\t")
-			main_textarea.insert(INSERT,f"{tabs_Num}.{Line_Num} >")
+			if not hascode:
+				main_textarea.insert(INSERT,f"{tabs_Num}.{Line_Num} >")
 			Line_Num+=1
 		else:
 			event.widget.insert(INSERT,">> ")
 		return
+
+	pos = main_textarea.index(INSERT)
 	if event.char=='(':
 		main_textarea.insert(INSERT,')')
 	elif event.char=='{':
