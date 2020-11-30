@@ -1,4 +1,5 @@
 import re
+import subprocess
 import json
 from tkinter import *
 import tkinter.messagebox as fmsg
@@ -8,16 +9,15 @@ from tkfontchooser import askfont
 from tkinter.colorchooser import askcolor
 from tkinter import ttk
 import tkinter.font as tkf
+import os
 
-
-file_name = "Untitled - NoteMaker"
+file_name = None
 issaved = False
 isopenedfile = False
 tbg = '#ffffff'
 tfg = '#000000'
 cbg = 'null'
 cfg = 'null'
-
 currTheme = 'notepad'
 font_family = 'arial'
 font_size = 20
@@ -38,6 +38,8 @@ def configure():
 	font_size = int(confes['font_size'])
 	font_family = confes['font_family']
 	font_style = confes['font_style']
+	if confes["wrap"] is 1:
+		wraps.set(1)
 	if(confes["custom"] != "null/null"):
 		colors = confes["custom"].split("/")
 		try:
@@ -111,7 +113,6 @@ def theme_update(tbg_para,tfg_para):
 		tbg = tbg_para
 		tfg = tfg_para
 
-configure()
 
 def exit_window():
 	global currTheme,font_family,font_size,font_style,isopenedfile
@@ -122,7 +123,8 @@ def exit_window():
 		"font_family":font_family,
 		"font_size":font_size,
 		"font_style":font_style,
-		"custom":f"{cbg}/{cfg}"
+		"custom":f"{cbg}/{cfg}",
+		'wrap':wraps.get()
 		})
 		num = len(conf)
 		f.write("{\n")
@@ -140,7 +142,7 @@ def exit_window():
 	root.destroy()
 
 def about():
-	fmsg.showinfo('NoteMaker - Create Efficient notes',f'developer name:- prashant maurya\nVersion :- 8.1\nThanks To using this notemaker plese loving this.')
+	fmsg.showinfo('NoteMaker - Create Efficient notes','Developer name:- Prashant maurya\nVersion :- 8.1\nThanks To using this notemaker plese loving this.')
 
 def delete_to_space(event):
 	sign = [" ","#","=","$",'@',"&",",",":",".","%","'"]
@@ -158,17 +160,16 @@ def delete_to_space(event):
 
 def close_file():
 	global isopenedfile,file_name,issaved
-	file_name = "Untitled - NoteMaker"
-	root.title(file_name)
+	file_name = None
+	root.title("Untitled - NoteMaker")
 	isopenedfile = False
 	issaved = False
 
 def Save_file():
 	global issaved,isopenedfile
-	if isopenedfile and file_name is not "Untitled - NoteMaker":
-		f = open(file_name,'w')
-		f.write(main_textarea.get("1.0",END).strip())
-		f.close()
+	if isopenedfile and file_name is not None:
+		with open(file_name,'w') as f:
+			f.write(main_textarea.get("1.0",END).strip())
 		issaved = True
 	else:
 		create_file()
@@ -195,49 +196,100 @@ def check_shortcut(event):
 	global issaved,isopenedfile,tabs_Num,Line_Num
 	if (event.state==12 or event.state==4) and event.keysym=='z':
 		Undo_write()
+		issaved = False
 		return
 	if (event.state==12 or event.state==4) and event.keysym=='s':
 		if isopenedfile:
 			Save_file()
 		else:
 			create_file()
+	valid_line = re.compile("\\s+\\d+\.\\d+")
 	matches = getIndex()
 	start_row=int(matches[1])
 	start_column=int(matches[0])
+
 	if event.keysym=='Return' and event.widget.get(INSERT,f"{start_column}.{start_row+3}") == ">> ":
 		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row+3}')
 
 	if event.keysym=="Return" and start_row==3:
 		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row}')
+		issaved = False
 		return
 
 	if (event.state==12 or event.state==4) and event.keysym=="o":
 		Open_file()
-	if issaved:
-		root.title(file_name)
-	elif event.keysym>="a" and event.keysym<="z":
-		root.title('*'+file_name)
+		issaved = False
+		return
+
 	previos_char = main_textarea.get(f'{start_column}.{start_row - 1}', INSERT)
 	if previos_char==">" and event.keysym=="BackSpace" and tabs_Num!=0:
 		main_textarea.delete(f'{start_column}.1',INSERT)
 		tabs_Num=0
 		Line_Num=0
+		issaved = False
+		return
 	if previos_char ==":" and event.keysym=="Return":
 		tabs_Num += 1
 		Line_Num=1
+		issaved = False
+		return
+	try:
+		line = main_textarea.get(f'{start_column}.0',INSERT)
+		line = valid_line.match(line)
+		number = re.compile("\\d+")
+		if line.group() is not None and event.keysym == "Return":
+			line = line.group().split(".")
+			check = line[0]
+			tabs_Num = int(line[0])
+			Line_Num = int(line[1])+1
+			block = len(line[0])+1
+			start_column+=1
+			line = main_textarea.get(f'{start_column}.0', f"{start_column}.100")
+			while valid_line.match(line).group() is not None and check==line[0:block-1]:
+				block_line = number.findall(line)[1]
+				main_textarea.delete(f"{start_column}.{block}",f"{start_column}.{block+len(block_line)}")
+				main_textarea.insert(f"{start_column}.{block}",f"{int(block_line)+1}")
+				start_column+=1
+				line = main_textarea.get(f'{start_column}.0',f"{start_column}.100")
+			return
+	except Exception as e:
+		pass
+	del start_row,start_column,matches,line,number
 	issaved = False
+
 
 def getIndex():
 	return d.findall(main_textarea.index(INSERT))
 
 def insert_next_line(event):
 	global disable_enter,has_Colun,tabs_Num,Line_Num
-	if event.keysym >= 'a' and event.keysym <= 'z':
-		Undo_save()
-	pos = main_textarea.index(INSERT)
-	matches = getIndex()
-	start_row=int(matches[1])
-	start_column=int(matches[0])
+	valid_char = re.compile('[a-zA-Z0-9:;@!#%^&*\.\s]')
+	try:
+		pos = main_textarea.index(INSERT)
+		matches = getIndex()
+		start_row=int(matches[1])
+		start_column=int(matches[0])
+		if issaved:
+			root.title(file_name)
+		elif valid_char.match(event.char).group() is  not None:
+			root.title('*' + 'Untitled - NoteMaker')
+		if valid_char.match(event.char).group() is  not None:
+			Undo_save()
+		if main_textarea.get(f'{start_column}.{start_row - 3}', f'{start_column}.{start_row}') == ".nn" and valid_char.match(event.char).group() is  not None:
+			main_textarea.delete(f'{start_column}.{start_row-3}',f'{start_column}.{start_row}')
+			main_textarea.insert(INSERT,"NOTE :- ")
+			return
+		if main_textarea.get(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}') == ".exit" and valid_char.match(event.char).group() is  not None:
+			main_textarea.delete(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}')
+			exit_window()
+			return
+		if main_textarea.get(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}') == ".cmd" and valid_char.match(event.char).group() is  not None:
+			main_textarea.delete(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}')
+			subprocess.run('start',shell=True,check=True)
+			disable_enter = True
+			return
+	except Exception as e:
+		pass
 
 	if event.keysym=="Return" and not disable_enter:
 		if tabs_Num != 0:
@@ -247,13 +299,6 @@ def insert_next_line(event):
 			Line_Num+=1
 		else:
 			event.widget.insert(INSERT,">> ")
-		return
-	if main_textarea.get(f'{start_column}.{start_row - 3}', f'{start_column}.{start_row}') == ".nn":
-		main_textarea.delete(f'{start_column}.{start_row-3}',f'{start_column}.{start_row}')
-		main_textarea.insert(INSERT,"NOTE :- ")
-		return
-	if main_textarea.get(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}') == ".exit":
-		exit_window()
 		return
 	if event.char=='(':
 		main_textarea.insert(INSERT,')')
@@ -276,34 +321,40 @@ def create_file():
 		close_file()
 		isopenedfile = False
 		root.title("Untitled - NoteMaker")
+		file_name=None
 	disable_enter = True
-	opened_file = fd.asksaveasfile(filetypes=[('Text Files','*.txt')],defaultextension='*.note')
-	if opened_file is None:
-		return
-	opened_file.write(main_textarea.get("1.0",END).strip())
-	opened_file.close()
-	isopenedfile = True
-	file_name = opened_file.name
-	root.title(file_name)
-	issaved = True
+	try:
+		with fd.asksaveasfile(filetypes=[('Text Files','*.txt')],defaultextension='*.note') as f:
+			f.write(main_textarea.get("1.0", END).strip())
+			file_name = f.name
+			isopenedfile = True
+			root.title(file_name)
+			issaved = True
+	except Exception as e:
+			isopenedfile = False
+			root.title("Untitled - NoteMaker")
+			file_name = None
+			issaved = False
 
 def Open_file():
-	global isopenedfile,file_name,issaved
+	global isopenedfile,file_name,issaved,disable_enter
+	disable_enter = True
 	if isopenedfile:
 		Save_file()
 		close_file()
 		isopenedfile = False
-	main_textarea.delete('0.0',END)
+		issaved = False
+	main_textarea.delete('1.0',END)
 	root.title("Untitled - NoteMaker")
-	opened_file = fd.askopenfile(mode='r',filetypes=[('Text Files','*.txt')])
-	if opened_file is None:
-		return
-	for line in opened_file :
-		main_textarea.insert(INSERT,line)
-	opened_file.close()
-	isopenedfile = True
-	file_name = opened_file.name
-	root.title(file_name)
+	try:
+		with fd.askopenfile(mode='r',filetypes=[('Text Files','*.txt')]) as f:
+			main_textarea.insert(INSERT,f.read())
+			file_name = f.name
+			isopenedfile = True
+			root.title(file_name)
+	except Exception as e:
+		isopenedfile = False
+		file_name=None
 
 def change_font():
 	global font_family,font_size,font_style
@@ -351,6 +402,7 @@ root.protocol("WM_DELETE_WINDOW", exit_window)
 typer_mode = IntVar()
 wraps = IntVar()
 root.title('Untitled - NoteMaker')
+configure()
 
 # creating menu
 menu = Menu(root)

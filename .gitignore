@@ -6,3 +6,5 @@ texsting.py
 *.ico
 *.txt
 *.json
+*.py
+*.cmd
