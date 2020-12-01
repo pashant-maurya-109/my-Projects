@@ -61,7 +61,10 @@ def configure():
 	"notepad":theme_notepad,
 	"night_owl":theme_night_owl
 	}
-	setTheme = theme_list[currTheme]
+	try:
+		setTheme = theme_list[currTheme]
+	except Exception as e:
+		setTheme = theme_list["notepad"]
 	setTheme()
 
 def theme_red_rose():
@@ -119,6 +122,7 @@ def exit_window():
 	global currTheme,font_family,font_size,font_style,isopenedfile
 	with open('conf.json','w') as f:
 		conf = json.dumps({
+		"WARING":"PLESE DO NOT EDIT ANY FIELD INSTED OF CUSTOM",
 		"use custom color":"color in hexa_decimal like :- tbg/tfg",
 		"theme":currTheme,
 		"font_family":font_family,
@@ -146,7 +150,7 @@ def about():
 	fmsg.showinfo('NoteMaker - Create Efficient notes','Developer name:- Prashant maurya\nVersion :- 9.4\nThanks To using this notemaker plese loving this.')
 
 def delete_to_space(event):
-	sign = [" ","#","=","$",'@',"&",",",":",".","%","'"]
+	sign = [" ","#","=","$",'@',"&",",",":",".","%","'",'"',";"]
 	insert = main_textarea.index(INSERT)
 	matches = d.findall(insert)
 	start_row=int(matches[1])
@@ -171,6 +175,7 @@ def Save_file():
 	if isopenedfile and file_name is not None:
 		with open(file_name,'w') as f:
 			f.write(main_textarea.get("1.0",END).strip())
+		root.title(file_name)
 		issaved = True
 	else:
 		create_file()
@@ -195,9 +200,11 @@ def Undo_write():
 
 def check_shortcut(event):
 	global issaved,isopenedfile,tabs_Num,Line_Num,hascode
+	if checkChar(event.char):
+		issaved = False
+
 	if (event.state==12 or event.state==4) and event.keysym=='z':
 		Undo_write()
-		issaved = False
 		return
 	if (event.state==12 or event.state==4) and event.keysym=='s':
 		if isopenedfile:
@@ -209,23 +216,42 @@ def check_shortcut(event):
 	start_row=int(matches[1])
 	start_column=int(matches[0])
 
+	if event.char=='{':
+		main_textarea.insert(INSERT,'}')
+		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
+		return
+	elif event.char == '(':
+		main_textarea.insert(INSERT, ')')
+		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
+		return
+	elif event.char == '[':
+		main_textarea.insert(INSERT, ']')
+		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
+		return
+	elif event.char == "'":
+		main_textarea.insert(INSERT, "'")
+		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
+		return
+	elif event.char == '"':
+		main_textarea.insert(INSERT, '"')
+		main_textarea.mark_set("insert", f"{start_column}.{start_row}")
+		return
+
 	if event.keysym=='Return' and event.widget.get(INSERT,f"{start_column}.{start_row+3}") == ">> ":
 		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row+3}')
+		return
 
 	if event.keysym=="Return" and start_row==3:
 		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row}')
-		issaved = False
 		return
 
 	if (event.state==12 or event.state==4) and event.keysym=="o":
 		Open_file()
-		issaved = False
 		return
 
 	if main_textarea.get(f'{start_column}.{start_row - 9}', f'{start_column}.{start_row}') == "startcode" and event.keysym == "Return":
 		tabs_Num += 1
 		hascode = True
-		issaved = False
 		return
 
 	previos_char = main_textarea.get(f'{start_column}.{start_row - 1}', INSERT)
@@ -234,34 +260,49 @@ def check_shortcut(event):
 		main_textarea.delete(f'{start_column}.1',INSERT)
 		tabs_Num=0
 		Line_Num=0
-		issaved = False
 		return
 	if previos_char =="{" and event.keysym== "Return":
 		tabs_Num+=1
+		pos = main_textarea.index(INSERT)
+		main_textarea.insert(INSERT,'\n')
+		for i in range(tabs_Num-1):
+			main_textarea.insert(INSERT,"\t")
+		main_textarea.mark_set('insert',pos)
 
 	if previos_char ==":" and event.keysym=="Return":
 		tabs_Num += 1
 		Line_Num=1
-		issaved = False
 		return
 	try:
-
 		line = main_textarea.get(f'{start_column}.0',INSERT)
 		line = valid_line.match(line)
-		number = re.compile("\\d+")
 		if line.group() is not None and event.keysym == "Return":
+			increment_lines_in_tree(start_column,line)
+			return
+	except Exception as e:
+		pass
+	del start_row,start_column,matches,line
+
+def increment_lines_in_tree(start_column,line):
+	global tabs_Num,Line_Num
+	valid_line = re.compile("\\s+\\d+\.\\d+")
+	try:
 			line = line.group().split(".")
 			check = line[0]
 			tabs_Num = int(line[0])
 			Line_Num = int(line[1])+1
 			block = len(line[0])+1
+			op = True
 			start_column+=1
 			line = main_textarea.get(f'{start_column}.0', f"{start_column}.100")
 			while valid_line.match(line).group() is not None :
-				block_line = number.findall(line)[1]
-				if check==line[0:block-1]:
+				block_line = re.compile("\\d+").findall(line)[1]
+				if check==line[0:block-1] and op:
 					main_textarea.delete(f"{start_column}.{block}",f"{start_column}.{block+len(block_line)}")
 					main_textarea.insert(f"{start_column}.{block}",f"{int(block_line)+1}")
+				else:
+					main_textarea.delete(f"{start_column}.{block}", f"{start_column}.{block + len(block_line)}")
+					main_textarea.insert(f"{start_column}.{block}", f"{int(block_line) - 1}")
 				if line[0]==">":
 					break
 				start_column+=1
@@ -269,40 +310,47 @@ def check_shortcut(event):
 			return
 	except Exception as e:
 		pass
-	del start_row,start_column,matches,line,number
-	issaved = False
-
 
 def getIndex():
 	return d.findall(main_textarea.index(INSERT))
 
+def checkChar(x):
+	valid_char = re.compile('[a-zA-Z0-9:;@!#%^&*\.\s]')
+	try:
+		valid_char.match(x).group()
+		return True
+	except Exception as e:
+		return False
+
 def insert_next_line(event):
 	global disable_enter,has_Colun,tabs_Num,Line_Num,hascode
-	valid_char = re.compile('[a-zA-Z0-9:;@!#%^&*\.\s]')
 	try:
 		matches = getIndex()
 		start_row=int(matches[1])
 		start_column=int(matches[0])
 		if issaved:
 			root.title(file_name)
-		elif valid_char.match(event.char).group() is  not None:
-			root.title('*' + 'Untitled - NoteMaker')
-		if valid_char.match(event.char).group() is  not None:
+		elif checkChar(event.char):
+			if file_name is None:
+				root.title('*' + 'Untitled - NoteMaker')
+			else:
+				root.title("*"+file_name)
+		if checkChar(event.char):
 			Undo_save()
-		if main_textarea.get(f'{start_column}.{start_row - 3}', f'{start_column}.{start_row}') == ".nn" and valid_char.match(event.char).group() is  not None:
+		if main_textarea.get(f'{start_column}.{start_row - 3}', f'{start_column}.{start_row}') == ".nn" and checkChar(event.char):
 			main_textarea.delete(f'{start_column}.{start_row-3}',f'{start_column}.{start_row}')
 			main_textarea.insert(INSERT,"NOTE :- ")
 			return
-		if main_textarea.get(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}') == ".exit" and valid_char.match(event.char).group() is  not None:
+		if main_textarea.get(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}') == ".exit" and checkChar(event.char):
 			main_textarea.delete(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}')
 			exit_window()
 			return
-		if main_textarea.get(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}') == ".cmd" and valid_char.match(event.char).group() is  not None:
+		if main_textarea.get(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}') == ".cmd" and checkChar(event.char):
 			main_textarea.delete(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}')
 			subprocess.run('start',shell=True,check=True)
 			disable_enter = True
 			return
-		if main_textarea.get(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}') == ".cexit" and valid_char.match(event.char).group() is  not None:
+		if main_textarea.get(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}') == ".cexit" and checkChar(event.char):
 			main_textarea.delete(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}')
 			hascode = False
 			tabs_Num = 0
@@ -322,18 +370,7 @@ def insert_next_line(event):
 			event.widget.insert(INSERT,">> ")
 		return
 
-	pos = main_textarea.index(INSERT)
-	if event.char=='(':
-		main_textarea.insert(INSERT,')')
-	elif event.char=='{':
-		main_textarea.insert(INSERT,'}')
-	elif event.char=='[':
-		main_textarea.insert(INSERT,']')
-	elif event.char=="'":
-		main_textarea.insert(INSERT,"'")
-	elif event.char=='"':
-		main_textarea.insert(INSERT,'"')
-	main_textarea.mark_set("insert",pos)
+
 	if disable_enter:
 		disable_enter = False
 
@@ -345,16 +382,18 @@ def create_file():
 		isopenedfile = False
 		root.title("Untitled - NoteMaker")
 		file_name=None
+		issaved = False
 	disable_enter = True
 	try:
-		with fd.asksaveasfile(filetypes=[('Text Files','*.txt')],defaultextension='*.note') as f:
+		with fd.asksaveasfile(filetypes=[('Text Files','*.txt')],defaultextension='*.txt') as f:
 			f.write(main_textarea.get("1.0", END).strip())
 			file_name = f.name
-			isopenedfile = True
-			root.title(file_name)
-			issaved = True
+		root.title(file_name)
+		isopenedfile = True
+		issaved = True
 	except Exception as e:
 			isopenedfile = False
+			print(e)
 			root.title("Untitled - NoteMaker")
 			file_name = None
 			issaved = False
@@ -369,15 +408,18 @@ def Open_file():
 		issaved = False
 	main_textarea.delete('1.0',END)
 	root.title("Untitled - NoteMaker")
+	disable_enter = True
 	try:
 		with fd.askopenfile(mode='r',filetypes=[('Text Files','*.txt')]) as f:
 			main_textarea.insert(INSERT,f.read())
 			file_name = f.name
 			isopenedfile = True
 			root.title(file_name)
+			issaved = True
 	except Exception as e:
 		isopenedfile = False
-		file_name=None
+		issaved = True
+		file_name = None
 
 def change_font():
 	global font_family,font_size,font_style
