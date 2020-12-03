@@ -256,11 +256,11 @@ def check_shortcut(event):
 
 	previos_char = main_textarea.get(f'{start_column}.{start_row - 1}', INSERT)
 
-	if previos_char==">" and event.keysym=="BackSpace" and tabs_Num!=0:
-		main_textarea.delete(f'{start_column}.1',INSERT)
+	if check_tree_line(get_curr_line(start_column)) is None and tabs_Num!=0:
 		tabs_Num=0
 		Line_Num=0
 		return
+
 	if previos_char =="{" and event.keysym== "Return":
 		tabs_Num+=1
 		pos = main_textarea.index(INSERT)
@@ -274,35 +274,46 @@ def check_shortcut(event):
 		Line_Num=1
 		return
 	try:
-		line = main_textarea.get(f'{start_column}.0',INSERT)
-		line = valid_line.match(line)
-		if line.group() is not None and event.keysym == "Return":
-			increment_lines_in_tree(start_column,line)
-			return
+		line = check_tree_line(get_curr_line(start_column))
+		if line is not None and event.keysym == "Return":
+			sync_lines_in_tree(start_column,line)
 	except Exception as e:
 		pass
 	del start_row,start_column,matches,line
 
-def increment_lines_in_tree(start_column,line):
+def get_number_in_line(line,n):
+	return re.compile("\\d+").findall(line)[n]
+
+def check_tree_line(line):
+	return  re.compile("\\s+\\d+\.\\d+").match(line)
+
+def get_curr_line(start_column):
+	return main_textarea.get(f'{start_column}.0',INSERT)
+
+def sync_lines_in_tree(start_column,line):
 	global tabs_Num,Line_Num
-	valid_line = re.compile("\\s+\\d+\.\\d+")
 	try:
 			line = line.group().split(".")
 			check = line[0]
 			tabs_Num = int(line[0])
 			Line_Num = int(line[1])+1
 			block = len(line[0])+1
-			op = True
+			diff = 1
 			start_column+=1
 			line = main_textarea.get(f'{start_column}.0', f"{start_column}.100")
-			while valid_line.match(line).group() is not None :
-				block_line = re.compile("\\d+").findall(line)[1]
-				if check==line[0:block-1] and op:
+			if int(get_number_in_line(line,1)) != Line_Num:
+				while check_tree_line(line) is None:
+					start_column+=1
+					line = main_textarea.get(f'{start_column}.0', f"{start_column}.100")
+				diff= (int(get_number_in_line(line,1))-Line_Num)-1
+			while check_tree_line(line) is not None :
+				block_line = get_number_in_line(line,1)
+				if check==line[0:block-1] and diff is 1:
 					main_textarea.delete(f"{start_column}.{block}",f"{start_column}.{block+len(block_line)}")
 					main_textarea.insert(f"{start_column}.{block}",f"{int(block_line)+1}")
-				else:
+				elif check==line[0:block-1] and diff is not 1:
 					main_textarea.delete(f"{start_column}.{block}", f"{start_column}.{block + len(block_line)}")
-					main_textarea.insert(f"{start_column}.{block}", f"{int(block_line) - 1}")
+					main_textarea.insert(f"{start_column}.{block}", f"{int(block_line) - diff}")
 				if line[0]==">":
 					break
 				start_column+=1
@@ -393,7 +404,6 @@ def create_file():
 		issaved = True
 	except Exception as e:
 			isopenedfile = False
-			print(e)
 			root.title("Untitled - NoteMaker")
 			file_name = None
 			issaved = False
@@ -413,9 +423,9 @@ def Open_file():
 		with fd.askopenfile(mode='r',filetypes=[('Text Files','*.txt')]) as f:
 			main_textarea.insert(INSERT,f.read())
 			file_name = f.name
-			isopenedfile = True
-			root.title(file_name)
-			issaved = True
+		isopenedfile = True
+		root.title(file_name)
+		issaved = True
 	except Exception as e:
 		isopenedfile = False
 		issaved = True
@@ -459,9 +469,7 @@ def setText_wrap():
 root = Tk()
 root.geometry(f"1000x500+190+100")
 root.title(file_name)
-# root.bind('Configure',check_typer_mode)
-# root.resizable(False,False)
-root.wm_iconbitmap('noteMakerIco.ico')
+root.wm_iconbitmap('nmico.ico')
 Editor_state = StringVar()
 root.protocol("WM_DELETE_WINDOW", exit_window)
 typer_mode = IntVar()
@@ -486,7 +494,6 @@ m1.add_command(label='Exit		',command=exit_window)
 menu.add_cascade(label='File',menu=m1)
 m2 = Menu(menu,tearoff=0)
 m2.add_command(label='Font',command=change_font)
-# m2.add_command(label='Typer Mode',command=change_screen)
 m2.add_checkbutton(label='Typer mode',onvalue=1, offvalue=0,variable=typer_mode,command=check_typer_mode)
 m2.add_checkbutton(label='Word Wrap',onvalue=1, offvalue=0,variable=wraps,command=setText_wrap)
 
