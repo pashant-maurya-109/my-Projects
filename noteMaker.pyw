@@ -3,132 +3,79 @@ import subprocess
 import json
 from tkinter import *
 import tkinter.messagebox as fmsg
-import tkinter.simpledialog as sd
 import tkinter.filedialog as fd
 from tkfontchooser import askfont
 from tkinter.colorchooser import askcolor
-from tkinter import ttk
 import tkinter.font as tkf
-import os
 
 file_name = None
 issaved = False
 isopenedfile = False
-tbg = '#ffffff'
-tfg = '#000000'
-cbg = 'null'
-cfg = 'null'
-currTheme = 'notepad'
+cbg = '#ffffff'
+cfg = '#000000'
 font_family = 'arial'
 font_size = 20
 font_style = 'normal'
 d = re.compile(r"\d+")
 disable_enter = False
-tabs_Num = 0
+tabs_Num = ""
 Line_Num = 0
 hascode = False
+select_text = ""
 def configure():
-	global currTheme,font_family,font_size,font_style
+	global font_family,font_size,font_style
 	try:
-		file = open('conf.json','r')
+		with open('conf.json','r') as f:
+			confes = json.loads(f.read())
 	except Exception as e:
 		return
-	with file as f:
-		confes = json.loads(f.read())
-	currTheme = confes["theme"]
 	font_size = int(confes['font_size'])
 	font_family = confes['font_family']
 	font_style = confes['font_style']
-	if confes["wrap"] is 1:
+	if confes["wrap"] == 1:
 		wraps.set(1)
-	if(confes["custom"] != "null/null"):
-		colors = confes["custom"].split("/")
-		try:
-			if colors[0]=='null' and colors[1]!='null':
-				theme_update(colors[0],'#000000')
-			elif colors[0]=='null' and colors[1]!='null':
-				theme_update('#ffffff',colors[1])
-			else:
-				theme_update(colors[0],colors[1])
-		except Exception as e:
-			pass
-		return
-	theme_list = {
-	"red_rose":theme_red_rose,
-	"winter_blue":theme_winter_blue,
-	"soft_cream":theme_soft_cream,
-	"nature_green":theme_nature_green,
-	"notepad":theme_notepad,
-	"night_owl":theme_night_owl
-	}
+		setText_wrap()
+	colors = confes["theme"].split("/")
 	try:
-		setTheme = theme_list[currTheme]
+		theme_update(colors[0],colors[1])
 	except Exception as e:
-		setTheme = theme_list["notepad"]
-	setTheme()
-
-def theme_red_rose():
-	global currTheme
-	currTheme = "red_rose"
-	theme_update('#ffe2f3','#980058')
-
-def theme_notepad():
-	global currTheme
-	currTheme = "notepad"
-	theme_update('#ffffff','#000000')
-
-def theme_nature_green():
-	global currTheme
-	currTheme = "nature_green"
-	theme_update('#edffef','#009211')
-
-def theme_soft_cream():
-	global currTheme
-	currTheme = "soft_cream"
-	theme_update('#fdf6e3','#ffba00')
-
-def theme_winter_blue():
-	global currTheme
-	currTheme = "winter_blue"
-	theme_update('#e5f9ff','#007092')
+		pass
 
 def theme_night_owl():
-	global currTheme
-	currTheme = "night_owl"
+	global cfg,cbg
+	cbg = '#282c34'
+	cfg = '#ffffff'
 	theme_update('#282c34','#ffffff')
 
 def custom_Background():
-	global cbg
+	global cbg,cfg
 	color = askcolor()
 	cbg = color[1]
-	main_textarea.config(fg=color[1],insertbackground=color[1])
+	theme_update(cbg,cfg)
 
 def custom_Foreground():
-	global cfg
+	global cbg, cfg
 	color = askcolor()
 	cfg = color[1]
-	main_textarea.config(fg=color[1],insertbackground=color[1])
+	theme_update(cbg, cfg)
 
 def theme_update(tbg_para,tfg_para):
 	try:
 		main_textarea.config(bg=tbg_para,fg=tfg_para,insertbackground=tfg_para)
 	except Exception as e:
-		global tbg,tfg
-		tbg = tbg_para
-		tfg = tfg_para
+		global cbg,cfg
+		cbg = tbg_para
+		cfg = tfg_para
 
 
 def exit_window():
-	global currTheme,font_family,font_size,font_style,isopenedfile
+	global cbg,cfg,font_family,font_size,font_style,isopenedfile
 	with open('conf.json','w') as f:
 		conf = json.dumps({
-		"WARING":"PLESE DO NOT EDIT ANY FIELD INSTED OF CUSTOM",
-		"use custom color":"color in hexa_decimal like :- tbg/tfg",
-		"theme":currTheme,
 		"font_family":font_family,
 		"font_size":font_size,
 		"font_style":font_style,
-		"custom":f"{cbg}/{cfg}",
+		"theme":f"{cbg}/{cfg}",
 		'wrap':wraps.get()
 		})
 		num = len(conf)
@@ -150,18 +97,21 @@ def about():
 	fmsg.showinfo('NoteMaker - Create Efficient notes','Developer name:- Prashant maurya\nVersion :- 9.4\nThanks To using this notemaker plese loving this.')
 
 def delete_to_space(event):
-	sign = [" ","#","=","$",'@',"&",",",":",".","%","'",'"',";"]
 	insert = main_textarea.index(INSERT)
-	matches = d.findall(insert)
+	matches = getIndex()
 	start_row=int(matches[1])
-	start_column=int(matches[0])
-	s = main_textarea.get(f'{start_column}.{start_row-1}',f'{start_column}.{start_row}')
 	while start_row is not 0:
-		s = main_textarea.get(f'{start_column}.{start_row-1}',f'{start_column}.{start_row}')
-		if (s in sign or start_row is 0):
+		s = main_textarea.get(f'{matches[0]}.{start_row-1}',f'{matches[0]}.{start_row}')
+		if (not checkChar(s) or start_row is 0):
+			start_row+=1
 			break
 		start_row-=1
-	main_textarea.delete(f'{start_column}.{start_row}',insert)
+	main_textarea.delete(f'{matches[0]}.{start_row}',insert)
+
+def backspace_shorcuts(event):
+	index = getIndex()
+	if index[1] == "3" and Line_Num==0 and not hascode:
+		main_textarea.delete(f'{int(index[0])}.0',INSERT)
 
 def close_file():
 	global isopenedfile,file_name,issaved
@@ -188,98 +138,32 @@ def Undo_save():
 		with open('temp.txt','x') as f:
 			f.write(main_textarea.get('1.0',END))
 
-def Undo_write():
+def Undo_write(event):
+	index = getIndex()
 	main_textarea.delete('1.0',END)
 	try:
 		with open('temp.txt','r') as f:
 			main_textarea.insert(INSERT,f.read())
+		main_textarea.mark_set('insert',f"{index[0]}.{index[1]}")
 	except Exception as e:
 		with open('temp.txt','x') as f:
 			pass
 
+def save_shortcut(event):
+	if isopenedfile:
+		Save_file()
+	else:
+		create_file()
 
 def check_shortcut(event):
 	global issaved,isopenedfile,tabs_Num,Line_Num,hascode
 	if checkChar(event.char):
 		issaved = False
-
-	if (event.state==12 or event.state==4) and event.keysym=='z':
-		Undo_write()
-		return
-	if (event.state==12 or event.state==4) and event.keysym=='s':
-		if isopenedfile:
-			Save_file()
-		else:
-			create_file()
-	valid_line = re.compile("\\s+\\d+\.\\d+")
-	matches = getIndex()
-	start_row=int(matches[1])
-	start_column=int(matches[0])
-
-	if event.char=='{':
-		main_textarea.insert(INSERT,'}')
-		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
-		return
-	elif event.char == '(':
-		main_textarea.insert(INSERT, ')')
-		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
-		return
-	elif event.char == '[':
-		main_textarea.insert(INSERT, ']')
-		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
-		return
-	elif event.char == "'":
-		main_textarea.insert(INSERT, "'")
-		main_textarea.mark_set('insert',f"{start_column}.{start_row}")
-		return
-	elif event.char == '"':
-		main_textarea.insert(INSERT, '"')
-		main_textarea.mark_set("insert", f"{start_column}.{start_row}")
-		return
-
-	if event.keysym=='Return' and event.widget.get(INSERT,f"{start_column}.{start_row+3}") == ">> ":
-		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row+3}')
-		return
-
-	if event.keysym=="Return" and start_row==3:
-		main_textarea.delete(f'{start_column}.0',f'{start_column}.{start_row}')
-		return
-
-	if (event.state==12 or event.state==4) and event.keysym=="o":
-		Open_file()
-		return
-
-	if main_textarea.get(f'{start_column}.{start_row - 9}', f'{start_column}.{start_row}') == "startcode" and event.keysym == "Return":
-		tabs_Num += 1
-		hascode = True
-		return
-
-	previos_char = main_textarea.get(f'{start_column}.{start_row - 1}', INSERT)
-
-	if check_tree_line(get_curr_line(start_column)) is None and tabs_Num!=0:
-		tabs_Num=0
+	index = getIndex()
+	if not hascode and check_tree_line(get_curr_line(index[0])) is None and tabs_Num!="":
+		tabs_Num=""
 		Line_Num=0
 		return
-
-	if previos_char =="{" and event.keysym== "Return":
-		tabs_Num+=1
-		pos = main_textarea.index(INSERT)
-		main_textarea.insert(INSERT,'\n')
-		for i in range(tabs_Num-1):
-			main_textarea.insert(INSERT,"\t")
-		main_textarea.mark_set('insert',pos)
-
-	if previos_char ==":" and event.keysym=="Return":
-		tabs_Num += 1
-		Line_Num=1
-		return
-	try:
-		line = check_tree_line(get_curr_line(start_column))
-		if line is not None and event.keysym == "Return":
-			sync_lines_in_tree(start_column,line)
-	except Exception as e:
-		pass
-	del start_row,start_column,matches,line
 
 def get_number_in_line(line,n):
 	return re.compile("\\d+").findall(line)[n]
@@ -295,7 +179,7 @@ def sync_lines_in_tree(start_column,line):
 	try:
 			line = line.group().split(".")
 			check = line[0]
-			tabs_Num = int(line[0])
+			tabs_Num = get_space(line[0])
 			Line_Num = int(line[1])+1
 			block = len(line[0])+1
 			diff = 1
@@ -326,15 +210,54 @@ def getIndex():
 	return d.findall(main_textarea.index(INSERT))
 
 def checkChar(x):
-	valid_char = re.compile('[a-zA-Z0-9:;@!#%^&*\.\s]')
+	valid_char = re.compile('[a-zA-Z0-9]')
 	try:
 		valid_char.match(x).group()
 		return True
 	except Exception as e:
 		return False
 
-def insert_next_line(event):
-	global disable_enter,has_Colun,tabs_Num,Line_Num,hascode
+def Return_shortcuts(event):
+	global  tabs_Num,hascode,Line_Num
+	index = getIndex()
+	if index[1] == "3" and Line_Num==0 and not hascode:
+		main_textarea.delete(f'{index[0]}.0', INSERT)
+
+	# change apply here
+	if main_textarea.get(f'{index[0]}.{int(index[1]) - 9}',INSERT) == "startcode":
+		tabs_Num = "\t"
+		hascode = True
+
+	if hascode:
+		tabs_Num =  get_space(main_textarea.get(f"{index[0]}.0",INSERT))[0:-1]
+		return
+
+	# change apply here
+	if main_textarea.get(f"{index[0]}.{int(index[1]) - 1}", INSERT) == "{":
+		tabs_Num = get_space(get_curr_line(index[0]))
+		pos = main_textarea.index(INSERT)
+		main_textarea.insert(INSERT, '\n'+tabs_Num)
+		main_textarea.mark_set('insert', pos)
+		return
+	# change apply here
+	if main_textarea.get(f"{index[0]}.{int(index[1]) - 1}", INSERT) == ":":
+		tabs_Num += "\t"
+		Line_Num = 1
+		return
+
+	line = check_tree_line(get_curr_line(int(index[0])))
+	if line is not None:
+		sync_lines_in_tree(int(index[0]),line)
+		return
+
+def get_space(line):
+	try:
+		return re.compile("\\s+").match(line).group()
+	except Exception as e:
+		return "\t"
+
+def keyrelease_shortcuts(event):
+	global disable_enter,tabs_Num,Line_Num,hascode
 	try:
 		matches = getIndex()
 		start_row=int(matches[1])
@@ -346,10 +269,9 @@ def insert_next_line(event):
 				root.title('*' + 'Untitled - NoteMaker')
 			else:
 				root.title("*"+file_name)
-		if checkChar(event.char):
-			Undo_save()
-		if main_textarea.get(f'{start_column}.{start_row - 3}', f'{start_column}.{start_row}') == ".nn" and checkChar(event.char):
-			main_textarea.delete(f'{start_column}.{start_row-3}',f'{start_column}.{start_row}')
+		Undo_save()
+		if main_textarea.get(f'{start_column}.{start_row - 2}', f'{start_column}.{start_row}') == ".N" and checkChar(event.char):
+			main_textarea.delete(f'{start_column}.{start_row-2}',f'{start_column}.{start_row}')
 			main_textarea.insert(INSERT,"NOTE :- ")
 			return
 		if main_textarea.get(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}') == ".exit" and checkChar(event.char):
@@ -361,29 +283,59 @@ def insert_next_line(event):
 			subprocess.run('start',shell=True,check=True)
 			disable_enter = True
 			return
+
+		# change apply here
 		if main_textarea.get(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}') == ".cexit" and checkChar(event.char):
 			main_textarea.delete(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}')
 			hascode = False
-			tabs_Num = 0
+			tabs_Num = ""
 			Line_Num = 0
 			return
 	except Exception as e:
 		pass
 
-	if event.keysym=="Return" and not disable_enter:
-		if tabs_Num != 0:
-			for i in range(tabs_Num):
-				main_textarea.insert(INSERT,"\t")
-			if not hascode:
-				main_textarea.insert(INSERT,f"{tabs_Num}.{Line_Num} >")
-			Line_Num+=1
-		else:
-			event.widget.insert(INSERT,">> ")
-		return
 
-
+def Return_Rlease_shortcut(event):
+	global  disable_enter,tabs_Num,Line_Num,hascode
 	if disable_enter:
 		disable_enter = False
+	elif tabs_Num != "" or hascode:
+		if hascode:
+			main_textarea.insert(INSERT,tabs_Num+"\t")
+		else:
+			main_textarea.insert(INSERT,tabs_Num)
+			main_textarea.insert(INSERT,f"{len(tabs_Num)}.{Line_Num} >")
+			Line_Num+=1
+	else:
+		event.widget.insert(INSERT,">> ")
+
+
+def selection_shorcuts(event):
+	try:
+		select_text = main_textarea.selection_get()
+		index = getIndex()
+		if event.char == "[":
+			main_textarea.insert(INSERT, event.char + select_text + "]")
+			main_textarea.delete(f"{index[0]}.{int(index[1])-1}",INSERT)
+		elif event.char == "{":
+			main_textarea.insert(INSERT, event.char + select_text + "}")
+			main_textarea.delete(f"{index[0]}.{int(index[1])-1}",INSERT)
+		elif event.char == "(":
+			main_textarea.insert(INSERT, event.char + select_text + ")")
+			main_textarea.delete(f"{index[0]}.{int(index[1])-1}",INSERT)
+		else:
+			main_textarea.insert(INSERT, event.char + select_text)
+	except Exception as e:
+		pos = main_textarea.index(INSERT)
+		if event.char == "[":
+			main_textarea.insert(INSERT, "]")
+		elif event.char == "{":
+			main_textarea.insert(INSERT, "}")
+		elif event.char == "(":
+			main_textarea.insert(INSERT, ")")
+		else:
+			main_textarea.insert(INSERT,event.char)
+		main_textarea.mark_set('insert',pos)
 
 def create_file():
 	global file_name,isopenedfile,disable_enter,issaved
@@ -407,6 +359,9 @@ def create_file():
 			root.title("Untitled - NoteMaker")
 			file_name = None
 			issaved = False
+
+def Open_file_shortcut(event):
+	Open_file()
 
 def Open_file():
 	global isopenedfile,file_name,issaved,disable_enter
@@ -444,7 +399,7 @@ def change_font():
 def check_typer_mode():
 	height = tkf.Font(font=main_textarea['font']).metrics('linespace')
 	if typer_mode.get() is 1:
-		root.geometry(f"1000x{height+55}+200+{555-height}")
+		root.geometry(f"1000x{height+55}+200+{565-height}")
 	else:
 		root.geometry("1000x500+190+100")
 
@@ -499,12 +454,7 @@ m2.add_checkbutton(label='Word Wrap',onvalue=1, offvalue=0,variable=wraps,comman
 
 # creating theme menu in edit
 theme = Menu(m2,tearoff=0)
-theme.add_command(label='Red Rose',command = theme_red_rose)
-theme.add_command(label='Nature green',command = theme_nature_green)
-theme.add_command(label='Winter Blue',command = theme_winter_blue)
-theme.add_command(label='Night Owl',command = theme_night_owl)
-theme.add_command(label='Soft Cream',command = theme_soft_cream)
-theme.add_command(label='Notepad',command = theme_notepad)
+theme.add_command(label='Dark mode',command = theme_night_owl)
 theme.add_command(label="custom Background",command = custom_Background)
 theme.add_command(label="custom Foreground",command = custom_Foreground)
 m2.add_cascade(label='Theme',menu=theme)
@@ -530,16 +480,30 @@ sc_x = Scrollbar(text_frame,orient=HORIZONTAL,width=20)
 sc_x.pack(side=BOTTOM,fill=X)
 
 # creating textarea
-main_textarea = Text(text_frame,insertbackground=tfg,tabs="0.5i",bg=tbg,fg=tfg,font=(font_family,font_size,font_style),yscrollcommand=sc_y.set,xscrollcommand=sc_x.set,wrap=NONE)
+main_textarea = Text(text_frame,insertbackground=cfg,tabs="0.5i",bg=cbg,fg=cfg,font=(font_family,font_size,font_style),yscrollcommand=sc_y.set,xscrollcommand=sc_x.set,wrap=NONE)
 main_textarea.pack(fill='both',expand=True)
 sc_y.config(command=main_textarea.yview)
 sc_x.config(command=main_textarea.xview)
-main_textarea.bind("<KeyRelease>",insert_next_line)
+main_textarea.bind("<KeyRelease>",keyrelease_shortcuts)
 main_textarea.bind("<Key>",check_shortcut)
 main_textarea.bind("<Control-BackSpace>",delete_to_space)
 main_textarea.bind("<MouseWheel>",zoom_in_out)
-
-del tbg,tfg
+main_textarea.bind("<Control-s>",save_shortcut)
+main_textarea.bind("<Control-z>",Undo_write)
+main_textarea.bind("<Control-o>",Open_file_shortcut)
+main_textarea.bind("<KeyRelease-Return>", Return_Rlease_shortcut)
+# main_textarea.bind("<Motion>",draging_textarea)
+main_textarea.bind("<BackSpace>",backspace_shorcuts)
+main_textarea.bind("<Return>",Return_shortcuts)
+main_textarea.bind("<'>",selection_shorcuts)
+main_textarea.bind("<{>",selection_shorcuts)
+main_textarea.bind('<">',selection_shorcuts)
+main_textarea.bind('<[>',selection_shorcuts)
+main_textarea.bind('<`>',selection_shorcuts)
+main_textarea.bind('<(>',selection_shorcuts)
+# main_textarea.bind('<KeyRelease-{>',selection_Release_shortcut)
+# main_textarea.bind('<KeyRelease-(>',selection_Release_shortcut)
+# main_textarea.bind('<KeyRelease-[>',selection_Release_shortcut)
 
 root.config(menu=menu)
 root.mainloop()
