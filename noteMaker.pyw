@@ -32,7 +32,6 @@ def configure():
 	font_style = confes['font_style']
 	if confes["wrap"] == 1:
 		wraps.set(1)
-		setText_wrap()
 	colors = confes["theme"].split("/")
 	try:
 		theme_update(colors[0],colors[1])
@@ -216,11 +215,10 @@ def Return_shortcuts(event):
 	index = getIndex()
 	if index[1] == "3" and Line_Num==0 and not hascode:
 		main_textarea.delete(f'{index[0]}.0', INSERT)
-	# change apply here
+
 	if main_textarea.get(f'{index[0]}.{int(index[1]) - 9}',INSERT) == "startcode":
 		tabs_Num = "\t"
 		hascode = True
-
 
 	# change apply here
 	if main_textarea.get(f"{index[0]}.{int(index[1]) - 1}", INSERT) == "{":
@@ -408,10 +406,13 @@ def zoom_in_out(event):
 	main_textarea.update()
 
 def setText_wrap():
-	if wraps.get() == 1:
-		main_textarea.config(wrap=WORD)
-	else:
-		main_textarea.config(wrap=NONE)
+	try:
+		if wraps.get() == 1:
+			main_textarea.config(wrap=WORD)
+		else:
+			main_textarea.config(wrap=NONE)
+	except Exception as e:
+		pass
 
 root = Tk()
 root.geometry(f"1000x500+190+100")
@@ -420,7 +421,6 @@ root.wm_iconbitmap('nmico.ico')
 root.protocol("WM_DELETE_WINDOW", exit_window)
 typer_mode = IntVar()
 wraps = IntVar()
-Total_lines = StringVar()
 root.title('Untitled - NoteMaker')
 configure()
 
@@ -489,5 +489,7 @@ main_textarea.bind('<">',selection_shorcuts)
 main_textarea.bind('<[>',selection_shorcuts)
 main_textarea.bind('<`>',selection_shorcuts)
 main_textarea.bind('<(>',selection_shorcuts)
+setText_wrap()
+
 root.config(menu=menu)
 root.mainloop()
