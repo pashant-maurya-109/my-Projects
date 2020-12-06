@@ -8,20 +8,18 @@ from tkfontchooser import askfont
 from tkinter.colorchooser import askcolor
 import tkinter.font as tkf
 
-file_name = None
-issaved = False
-isopenedfile = False
-cbg = '#ffffff'
-cfg = '#000000'
-font_family = 'arial'
-font_size = 20
-font_style = 'normal'
-d = re.compile(r"\d+")
-disable_enter = False
+file_name = None # for file hendling
+issaved = False # for file hendling
+isopenedfile = False # for file hendling
+cbg = '#ffffff'  # for textarea customization
+cfg = '#000000'  # for textarea customization
+font_family = 'arial'  # for textarea customization
+font_size = 20  # for textarea customization
+font_style = 'normal'  # for textarea customization
+disable_enter = False # for hendling enter
 tabs_Num = ""
 Line_Num = 0
 hascode = False
-select_text = ""
 def configure():
 	global font_family,font_size,font_style
 	try:
@@ -70,6 +68,7 @@ def theme_update(tbg_para,tfg_para):
 
 def exit_window():
 	global cbg,cfg,font_family,font_size,font_style,isopenedfile
+	Undo_save()
 	with open('conf.json','w') as f:
 		conf = json.dumps({
 		"font_family":font_family,
@@ -98,6 +97,7 @@ def about():
 
 def delete_to_space(event):
 	insert = main_textarea.index(INSERT)
+
 	matches = getIndex()
 	start_row=int(matches[1])
 	while start_row is not 0:
@@ -169,7 +169,7 @@ def get_number_in_line(line,n):
 	return re.compile("\\d+").findall(line)[n]
 
 def check_tree_line(line):
-	return  re.compile("\\s+\\d+\.\\d+").match(line)
+	return  re.compile("\\s+\\d+").match(line)
 
 def get_curr_line(start_column):
 	return main_textarea.get(f'{start_column}.0',INSERT)
@@ -177,29 +177,23 @@ def get_curr_line(start_column):
 def sync_lines_in_tree(start_column,line):
 	global tabs_Num,Line_Num
 	try:
-			line = line.group().split(".")
-			check = line[0]
-			tabs_Num = get_space(line[0])
-			Line_Num = int(line[1])+1
-			block = len(line[0])+1
+			line = line.group()
+			tabs_Num = get_space(line)
+			Line_Num = int(line)+1
+			block = len(tabs_Num)
 			diff = 1
 			start_column+=1
 			line = main_textarea.get(f'{start_column}.0', f"{start_column}.100")
-			if int(get_number_in_line(line,1)) != Line_Num:
+			if int(get_number_in_line(line,0)) != Line_Num:
 				while check_tree_line(line) is None:
 					start_column+=1
 					line = main_textarea.get(f'{start_column}.0', f"{start_column}.100")
-				diff= (int(get_number_in_line(line,1))-Line_Num)-1
+				diff = ((int(get_number_in_line(line,0))-Line_Num)-1)*-1
 			while check_tree_line(line) is not None :
-				block_line = get_number_in_line(line,1)
-				if check==line[0:block-1] and diff is 1:
+				block_line = get_number_in_line(line,0)
+				if get_space(line)==tabs_Num:
 					main_textarea.delete(f"{start_column}.{block}",f"{start_column}.{block+len(block_line)}")
-					main_textarea.insert(f"{start_column}.{block}",f"{int(block_line)+1}")
-				elif check==line[0:block-1] and diff is not 1:
-					main_textarea.delete(f"{start_column}.{block}", f"{start_column}.{block + len(block_line)}")
-					main_textarea.insert(f"{start_column}.{block}", f"{int(block_line) - diff}")
-				if line[0]==">":
-					break
+					main_textarea.insert(f"{start_column}.{block}",f"{int(block_line)+diff}")
 				start_column+=1
 				line = main_textarea.get(f'{start_column}.0',f"{start_column}.100")
 			return
@@ -207,7 +201,7 @@ def sync_lines_in_tree(start_column,line):
 		pass
 
 def getIndex():
-	return d.findall(main_textarea.index(INSERT))
+	return re.compile("\\d+").findall(main_textarea.index(INSERT))
 
 def checkChar(x):
 	valid_char = re.compile('[a-zA-Z0-9]')
@@ -222,15 +216,11 @@ def Return_shortcuts(event):
 	index = getIndex()
 	if index[1] == "3" and Line_Num==0 and not hascode:
 		main_textarea.delete(f'{index[0]}.0', INSERT)
-
 	# change apply here
 	if main_textarea.get(f'{index[0]}.{int(index[1]) - 9}',INSERT) == "startcode":
 		tabs_Num = "\t"
 		hascode = True
 
-	if hascode:
-		tabs_Num =  get_space(main_textarea.get(f"{index[0]}.0",INSERT))[0:-1]
-		return
 
 	# change apply here
 	if main_textarea.get(f"{index[0]}.{int(index[1]) - 1}", INSERT) == "{":
@@ -239,13 +229,17 @@ def Return_shortcuts(event):
 		main_textarea.insert(INSERT, '\n'+tabs_Num)
 		main_textarea.mark_set('insert', pos)
 		return
+
+	if hascode:
+		tabs_Num =  get_space(main_textarea.get(f"{index[0]}.0",INSERT))[0:-1]
+		return
 	# change apply here
 	if main_textarea.get(f"{index[0]}.{int(index[1]) - 1}", INSERT) == ":":
-		tabs_Num += "\t"
+		tabs_Num = get_space(get_curr_line(index[0]))+"\t"
 		Line_Num = 1
 		return
 
-	line = check_tree_line(get_curr_line(int(index[0])))
+	line = check_tree_line(get_curr_line(index[0]))
 	if line is not None:
 		sync_lines_in_tree(int(index[0]),line)
 		return
@@ -258,38 +252,38 @@ def get_space(line):
 
 def keyrelease_shortcuts(event):
 	global disable_enter,tabs_Num,Line_Num,hascode
+
 	try:
 		matches = getIndex()
 		start_row=int(matches[1])
 		start_column=int(matches[0])
+
 		if issaved:
 			root.title(file_name)
-		elif checkChar(event.char):
+
+		Undo_save()
+		if checkChar(event.char):
 			if file_name is None:
 				root.title('*' + 'Untitled - NoteMaker')
 			else:
 				root.title("*"+file_name)
-		Undo_save()
-		if main_textarea.get(f'{start_column}.{start_row - 2}', f'{start_column}.{start_row}') == ".N" and checkChar(event.char):
-			main_textarea.delete(f'{start_column}.{start_row-2}',f'{start_column}.{start_row}')
-			main_textarea.insert(INSERT,"NOTE :- ")
-			return
-		if main_textarea.get(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}') == ".exit" and checkChar(event.char):
-			main_textarea.delete(f'{start_column}.{start_row - 5}', f'{start_column}.{start_row}')
-			exit_window()
-			return
-		if main_textarea.get(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}') == ".cmd" and checkChar(event.char):
-			main_textarea.delete(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}')
-			subprocess.run('start',shell=True,check=True)
-			disable_enter = True
-			return
+			command = main_textarea.get(f'{start_column}.{start_row - 4}', f'{start_column}.{start_row}')
+			if command == ".not":
+				main_textarea.delete(f'{start_column}.{start_row-4}',f'{start_column}.{start_row}')
+				main_textarea.insert(INSERT,"NOTE :- ")
+			elif command == ".exi":
+				main_textarea.delete(f'{start_column}.{start_row-4}',f'{start_column}.{start_row}')
+				exit_window()
+			elif command == ".scq":
+				main_textarea.delete(f'{start_column}.{start_row-4}',f'{start_column}.{start_row}')
+				hascode = False
+				tabs_Num = ""
+				Line_Num = 0
+			elif command == ".cmd":
+				main_textarea.delete(f'{start_column}.{start_row-4}',f'{start_column}.{start_row}')
+				subprocess.run(['start'], shell=True, check=True)
+				disable_enter = True
 
-		# change apply here
-		if main_textarea.get(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}') == ".cexit" and checkChar(event.char):
-			main_textarea.delete(f'{start_column}.{start_row - 6}', f'{start_column}.{start_row}')
-			hascode = False
-			tabs_Num = ""
-			Line_Num = 0
 			return
 	except Exception as e:
 		pass
@@ -297,6 +291,7 @@ def keyrelease_shortcuts(event):
 
 def Return_Rlease_shortcut(event):
 	global  disable_enter,tabs_Num,Line_Num,hascode
+
 	if disable_enter:
 		disable_enter = False
 	elif tabs_Num != "" or hascode:
@@ -304,7 +299,7 @@ def Return_Rlease_shortcut(event):
 			main_textarea.insert(INSERT,tabs_Num+"\t")
 		else:
 			main_textarea.insert(INSERT,tabs_Num)
-			main_textarea.insert(INSERT,f"{len(tabs_Num)}.{Line_Num} >")
+			main_textarea.insert(INSERT,f"{Line_Num} >")
 			Line_Num+=1
 	else:
 		event.widget.insert(INSERT,">> ")
@@ -405,10 +400,7 @@ def check_typer_mode():
 
 def zoom_in_out(event):
 	global font_size,font_family,font_style
-	if event.state==36 or event.state==38 or event.state==44 or event.state == 46:
-		fmsg.showinfo("Error in zoom_in_out","Plese off your Scroll lock")
-
-	if (event.state==12 or event.state ==4) and event.delta < 0 and font_size >= 10:
+	if (event.state==12 or event.state ==4) and event.delta < 0 and font_size >= 20:
 		font_size-=1
 	elif (event.state==12 or event.state ==4) and event.delta > 0 and font_size <= 70:
 		font_size+=1
@@ -425,10 +417,10 @@ root = Tk()
 root.geometry(f"1000x500+190+100")
 root.title(file_name)
 root.wm_iconbitmap('nmico.ico')
-Editor_state = StringVar()
 root.protocol("WM_DELETE_WINDOW", exit_window)
 typer_mode = IntVar()
 wraps = IntVar()
+Total_lines = StringVar()
 root.title('Untitled - NoteMaker')
 configure()
 
@@ -465,9 +457,6 @@ m3 = Menu(menu,tearoff=0)
 m3.add_command(label='about		',command=about)
 menu.add_cascade(label='help',menu=m3)
 
-# creating status bar by label
-# staus = Label(root, textvariable=Editor_state, bg=sbg, fg=sfg, font='sarif 15 normal',height=1)
-# staus.pack(fill=BOTH,side=BOTTOM)
 
 text_frame = Frame(root)
 text_frame.pack(side=TOP,expand=True,fill="both")
@@ -487,12 +476,11 @@ sc_x.config(command=main_textarea.xview)
 main_textarea.bind("<KeyRelease>",keyrelease_shortcuts)
 main_textarea.bind("<Key>",check_shortcut)
 main_textarea.bind("<Control-BackSpace>",delete_to_space)
-main_textarea.bind("<MouseWheel>",zoom_in_out)
+main_textarea.bind("<Control-MouseWheel>",zoom_in_out)
 main_textarea.bind("<Control-s>",save_shortcut)
 main_textarea.bind("<Control-z>",Undo_write)
 main_textarea.bind("<Control-o>",Open_file_shortcut)
 main_textarea.bind("<KeyRelease-Return>", Return_Rlease_shortcut)
-# main_textarea.bind("<Motion>",draging_textarea)
 main_textarea.bind("<BackSpace>",backspace_shorcuts)
 main_textarea.bind("<Return>",Return_shortcuts)
 main_textarea.bind("<'>",selection_shorcuts)
@@ -501,9 +489,5 @@ main_textarea.bind('<">',selection_shorcuts)
 main_textarea.bind('<[>',selection_shorcuts)
 main_textarea.bind('<`>',selection_shorcuts)
 main_textarea.bind('<(>',selection_shorcuts)
-# main_textarea.bind('<KeyRelease-{>',selection_Release_shortcut)
-# main_textarea.bind('<KeyRelease-(>',selection_Release_shortcut)
-# main_textarea.bind('<KeyRelease-[>',selection_Release_shortcut)
-
 root.config(menu=menu)
 root.mainloop()
